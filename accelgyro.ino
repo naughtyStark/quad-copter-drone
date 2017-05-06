@@ -1,6 +1,3 @@
-#define L 1
-#define C 0.0104
-
 inline void callimu()
 {
   //-------EXTRACTION AND PROCESSING OF ACCEL-GYRO DATA BEGINS--
@@ -24,21 +21,7 @@ inline void callimu()
   
   orientationUpdate();   //~170us function   
 }                            //we reach the 650us mark here
-/*
- * following function is still under research.It uses fuzzy logic, it is supposed to calculate the trust for the accel-gyro filter. inspired from an L-C circuit
-inline float trust()
-{
-  float w,X;
-  w=sqrt(A[0]*A[0] +A[1]*A[1] + A[2]*A[2]);
-  X=(L*w-(1/(C*w)))*(L*w-(1/(C*w))); 
-  return 1/sqrt((0.01)+X) ;
-}
-*/
 
-inline float mod(float a)  //takes ~70us to execute, use wisely
-{
-  return sqrt(a*a);
-}
 
 inline float my_asin(float a)
 {

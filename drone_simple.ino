@@ -30,7 +30,8 @@ int16_t a[3];  //accelerations from mpu6050
 int16_t g[3];  //gyration rates from mpu6050
 
 float A[3],G[3],lastA[3]={0,0,0},lastG[3]={0,0,0},offsetA[3],offsetG[3],T[2]; //x=0,y=1,z=2, T=tilt.
-int i,j,connection;
+int i,j;
+bool connection;
 
 //-----------ACCEL-GYRO STUFF ENDS----------------
 

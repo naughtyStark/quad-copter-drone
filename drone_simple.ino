@@ -8,15 +8,13 @@
 #include "MPU6050.h"
 #include "Wire.h"
 
-
-#define LED 7
 #define Kp 1
 #define Kd 0.8
 #define YawKp 0.5
 #define minValue 1100
 
 unsigned long FL,FR,BL,BR; //(Front left, front right, back left, back right motor)
-long esc_timer;
+long esc_timer,end_timer;
 #define FLpin B11110111   // binary codes for pulling a pin low. refer to motorWrite() function to understand what is happening 
 #define FRpin B11101111   // the pins are set high at the begining of each loop
 #define BLpin B11011111
@@ -103,8 +101,6 @@ void setup()
     T[1]= 57.3*asin(A[0]/9.8);
 //------------ACCEL-GYRO SETUP ENDS-------------
 
-    pinMode(LED,OUTPUT);  //led pin
-
 }
 
 
@@ -130,23 +126,26 @@ inline int deadBand(int input)
 }
 
 
-inline void motorWrite()
-{   
-   while(PORTD>8)
+inline void motorWrite() //has a maximum error of 3.5 us(time taken by micros() to return ) 
+{                                                     
+   while(PORTD>8)  //while any of the pins 3,4,5,6 are high
    {
-     if(micros()>= FL)
+     end_timer=micros();//store current time in a variable, better than calling micros() in the if condition, 
+                        //for example if all the escs need to be fed 1500us, then there will be a delay of 3.5us 
+                        //between each pulse's falling edge, meaning a difference of 14us between the first and the last motor.  
+     if(end_timer >= FL)  
      {
         PORTD &= FLpin;
      }
-     if(micros()>= FR)
+     if(end_timer >= FR)
      {
         PORTD &= FRpin;
      }
-     if(micros()>= BL)
+     if(end_timer >= BL)
      {
         PORTD &= BLpin;
      }
-     if(micros()>= BR)
+     if(end_timer >= BR)
      {
         PORTD &= BRpin;
      }
@@ -192,14 +191,18 @@ void loop()
     BL=(1000);
     BR=(1000);
     motorWrite();
-    digitalWrite(LED,HIGH);
  }
  else
  {
    
-   lastTime=esc_timer=micros();     //get time stamp
+   lastTime=esc_timer=micros();  //get time stamp
    PORTD |= B01111000;  //pull pins 3,4,5,6 high 
-   
+                        //notice that the pins are pulled high after getting the time stamp.this is done in that order because
+                        //the micros() function returns the time at which it was called and not at which it returns, so there is a 3.5us
+                        //delay. hence the time that we get in the esc_timer is 3.5us old.
+                        //In the motorWrite function, the time stamp is taken first(which returns a 3.5 us old time) and then compared.
+                        //This essentially reduces the error that can exist in the pulse's width because the order in which start time is 
+                        //observed and pin is pulled high is the same as the order in which end time is observed and the pin is pulled low
    callimu();   //takes 670us 
   
    if(yawsetp<(-40)&&throttle<minValue)   //arming sequence

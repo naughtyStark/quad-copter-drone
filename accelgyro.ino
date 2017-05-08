@@ -1,3 +1,5 @@
+#define my_asin(a) a*(1+0.5*a*a) // mclaurin's expansion of asin() upto 2nd term. good enough accuracy for the purpose
+
 inline void callimu()
 {
   //-------EXTRACTION AND PROCESSING OF ACCEL-GYRO DATA BEGINS--
@@ -23,11 +25,6 @@ inline void callimu()
 }                            //we reach the 650us mark here
 
 
-inline float my_asin(float a)
-{
-  return a*(1+(0.5*a*a));   // mclaurin's expansion of asin() upto 2nd term. good enough accuracy for the purpose 
-}                          //probably takes less time than arduino's asin()
-
 inline void orientationUpdate()    
 {
   
@@ -44,8 +41,8 @@ inline void orientationUpdate()
                                             // ~60us
   if((A[1]*A[1])<81&&(A[0]*A[0])<81)  //making sure that magnitude of A[0] and A[1] is less than 9.not using mod because it takes 70us to execute once               
   {
-    T[0]= 0.95*T[0]-2.865*my_asin(A[1]/9.8);
-    T[1]= 0.95*T[1]+2.865*my_asin(A[0]/9.8);
+    T[0]= 0.95*T[0]-2.865*my_asin(A[1]*0.102);
+    T[1]= 0.95*T[1]+2.865*my_asin(A[0]*0.102);
   }                                 //~100us
 }
 

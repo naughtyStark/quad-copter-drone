@@ -8,7 +8,7 @@ inline void callimu()
   {
     A[i]=a[i];
     A[i]-=offsetA[i]; //subtracting offset
-    A[i]*=0.006103; //mapping to real world values in m/s^2 , instead of dividing by 1638.4 i multiply by 1/1638.4 to save on time as multiplication is faster 
+    A[i]*=0.0006103; //mapping to real world values in m/s^2 , instead of dividing by 1638.4 i multiply by 1/1638.4 to save on time as multiplication is faster 
     
     A[i]= (0.8*A[i])+(0.2*lastA[i]); //applying the steady state assumption that the Acceleration can't change too much within 2.5 ms 
     lastA[i]=A[i]; 

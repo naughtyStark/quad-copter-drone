@@ -3,7 +3,7 @@
 inline void callimu()
 {
   //-------EXTRACTION AND PROCESSING OF ACCEL-GYRO DATA BEGINS--
-  accelgyro.getMotion6(&a[0], &a[1], &a[2], &g[0], &g[1], &g[2]); //calling imu for values , takes ~300us
+  readMPU();  //marginally faster than getMotion6
   for(i=0;i<3;i++)
   {
     A[i]=a[i];

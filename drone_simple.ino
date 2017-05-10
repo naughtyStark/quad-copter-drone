@@ -10,6 +10,8 @@
 
 #define Kp 1
 #define Kd 0.8
+#define Ki (0.000025)  //premultiply the time with Ki 
+#define IMAX 20000  //this is not in degrees, this is degrees*400 
 #define YawKp 0.5
 #define minValue 1100
 
@@ -23,11 +25,11 @@ long esc_timer,end_timer;
 //-----ACCEL-GYRO STUFF BEGINS---------------------
 MPU6050 accelgyro;
 //MPU6050 accelgyro(0x69); // <-- use for AD0 high
-
 int16_t a[3];  //accelerations from mpu6050
 int16_t g[3];  //gyration rates from mpu6050
 
 float A[3],G[3],lastA[3]={0,0,0},lastG[3]={0,0,0},offsetA[3],offsetG[3],T[2]; //x=0,y=1,z=2, T=tilt.
+float sigma[2]={0.0,0.0};  //variable for the integral part
 int i,j;
 bool connection;
 
@@ -40,6 +42,27 @@ volatile unsigned long timer[5];
 volatile byte last_channel[4]={0,0,0,0};
 volatile int input[4]={1000,1500,1500,1500};
 //---------------------------
+
+inline void readMPU()   //function for reading MPU values. its about 80us faster than getMotion6() and hey every us counts!
+{
+  Wire.beginTransmission(0x68);  //begin transmission with the gyro
+  Wire.write(0x3B); //start reading from high byte register for accel
+  Wire.endTransmission();
+  Wire.requestFrom(0x68,14); //request 14 bytes from mpu
+
+  while(Wire.available()>14); //till all the data has been received, keep reading
+  //each value in the mpu is stored in a "broken" form in 2 consecutive registers.(for example, acceleration along X axis has a high byte at 0x3B and low byte at 0x3C 
+  //to get the actual value, all you have to do is shift the highbyte by 8 bits and bitwise add it to the low byte and you have your original value/. 
+  a[0]=Wire.read()<<8|Wire.read();  
+  a[1]=Wire.read()<<8|Wire.read(); 
+  a[2]=Wire.read()<<8|Wire.read(); 
+  g[0]=Wire.read()<<8|Wire.read();  //this one is actually temperature but i dont need temp so why waste memory.
+  g[0]=Wire.read()<<8|Wire.read();  
+  g[1]=Wire.read()<<8|Wire.read();
+  g[2]=Wire.read()<<8|Wire.read();
+}
+
+
 
 void setup()
 {
@@ -60,15 +83,11 @@ void setup()
   
   //==============done==============================
 
-  //===========ACCELGYRO SETUP BEGINS===============
-    #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
-        Wire.begin();
-        TWBR = 12;              // for 400KHz
-    #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
-        Fastwire::setup(400, true);
-    #endif
+  //===========ACCELGYRO SETUP BEGINS===============   
+    Wire.begin();
+    TWBR = 12;              // for 400KHz
     
-    accelgyro.initialize();
+    accelgyro.initialize();  //do the whole initial setup thingy using this function.
     accelgyro.testConnection() ? connection=1 : connection=0 ; 
     // offsets
     //
@@ -83,7 +102,7 @@ void setup()
     
     for(j=0;j<2000;j++)   //taking 2000 samples for finding initial orientation
     {
-      accelgyro.getMotion6(&a[0], &a[1], &a[2], &g[0], &g[1], &g[2]);  //get the values
+      accelgyro.getMotion6(&a[0], &a[1], &a[2], &g[0], &g[1], &g[2]);
       for(i=0;i<2;i++)                                      
       {
         A[i]=a[i];         //transfer value
@@ -97,8 +116,8 @@ void setup()
     lastA[0]=0;  //lastA[i] was used here only as a place holder for a "sum" variable. it's purpose as a sum variable
     lastA[1]=0;  // has been fullfilled, therefore it will now be restored to 0 so that it can be used for it's origianl purpose
    
-    T[0]=(-57.3*asin(A[1]/9.8));  //initial orientation 
-    T[1]= 57.3*asin(A[0]/9.8);
+    T[0]=(57.3*asin(A[1]/9.8));  //initial orientation 
+    T[1]=(-57.3*asin(A[0]/9.8));
 //------------ACCEL-GYRO SETUP ENDS-------------
 
 }
@@ -184,7 +203,7 @@ void loop()
 {
  if(connection==0)  //in case accelgyro connection fails
  {
-    lastTime=esc_timer=micros();     //get time stamp
+    lastTime = esc_timer = micros();     //get time stamp
     PORTD |= B01111000;
     FL=(1000);
     FR=(1000);
@@ -203,6 +222,7 @@ void loop()
                         //In the motorWrite function, the time stamp is taken first(which returns a 3.5 us old time) and then compared.
                         //This essentially reduces the error that can exist in the pulse's width because the order in which start time is 
                         //observed and pin is pulled high is the same as the order in which end time is observed and the pin is pulled low
+   
    callimu();   //takes 670us 
   
    if(yawsetp<(-40)&&throttle<minValue)   //arming sequence
@@ -214,10 +234,10 @@ void loop()
       arm=0;
    }
    //~700 us by now (max)
+    
+   r=Kp*(rollsetp-T[1]) + Kd*G[1] + Ki*sigma[1];   //reducing time be not creating a function at all for these tiny tasks
    
-   r=Kp*(rollsetp-T[1]) + Kd*G[1];   //reducing time be not creating a function at all for these tiny tasks
-   
-   p=Kp*(pitchsetp-T[0]) + Kd*G[0];
+   p=Kp*(pitchsetp-T[0]) + Kd*G[0] + Ki*sigma[0];
    
    y=YawKp*(yawsetp-G[2]);
 
@@ -246,6 +266,19 @@ void loop()
    {
       throttle=1000;
       correction();
+   }
+   //now that we are done with writing the PWM, we have some free time on our hands
+   for(i=0;i<2;i++)
+   {     
+      sigma[i]+= T[i];
+      if(sigma[i]>IMAX)
+      {
+        sigma[i]=IMAX;
+      }
+      if(sigma[i]<(-IMAX))
+      {
+        sigma[i]=(-IMAX);
+      }
    }
  }
  while(micros()-lastTime<2500);  //wait for the 2500 us to be over
@@ -308,4 +341,5 @@ ISR(PCINT0_vect)
   }
   
 }
+
 

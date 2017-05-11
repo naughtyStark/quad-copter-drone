@@ -268,18 +268,25 @@ void loop()
       correction();
    }
    //now that we are done with writing the PWM, we have some free time on our hands
-   for(i=0;i<2;i++)
-   {     
-      sigma[i]+= T[i];
-      if(sigma[i]>IMAX)
-      {
-        sigma[i]=IMAX;
-      }
-      if(sigma[i]<(-IMAX))
-      {
-        sigma[i]=(-IMAX);
-      }
-   }
+   sigma[0]+= (pitchsetp-T[0]);
+    if(sigma[0]>IMAX)
+    {
+      sigma[0]=IMAX;
+    }
+    if(sigma[0]<(-IMAX))
+    {
+      sigma[0]=(-IMAX);
+    }
+    
+    sigma[1]+= (rollsetp-T[1]);
+    if(sigma[1]>IMAX)
+    {
+      sigma[1]=IMAX;
+    }
+    if(sigma[1]<(-IMAX))
+    {
+      sigma[1]=(-IMAX);
+    }
  }
  while(micros()-lastTime<2500);  //wait for the 2500 us to be over
 }

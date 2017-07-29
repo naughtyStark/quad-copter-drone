@@ -235,9 +235,9 @@ void loop()
    }
    //~700 us by now (max)
     
-   r=Kp*(rollsetp-T[1]) + Kd*G[1] + Ki*sigma[1];   //reducing time be not creating a function at all for these tiny tasks
+   r=Kp*(rollsetp-T[1]) - Kd*G[1] + Ki*sigma[1];   //reducing time be not creating a function at all for these tiny tasks
    
-   p=Kp*(pitchsetp-T[0]) + Kd*G[0] + Ki*sigma[0];
+   p=Kp*(pitchsetp-T[0]) - Kd*G[0] + Ki*sigma[0];
    
    y=YawKp*(yawsetp-G[2]);
 

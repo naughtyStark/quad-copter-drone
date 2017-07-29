@@ -41,8 +41,8 @@ inline void orientationUpdate()
                                             // ~60us
   if((A[1]*A[1])<81&&(A[0]*A[0])<81)  //making sure that magnitude of A[0] and A[1] is less than 9.not using mod because it takes 70us to execute once               
   {
-    T[0]= 0.95*T[0]+2.865*my_asin(A[1]*0.102);
-    T[1]= 0.95*T[1]-2.865*my_asin(A[0]*0.102);
+    T[0]= 0.99*T[0]+0.573*my_asin(A[1]*0.102);
+    T[1]= 0.99*T[1]-0.573*my_asin(A[0]*0.102);
   }                                 //~100us
 }
 

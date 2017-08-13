@@ -43,10 +43,6 @@ volatile byte last_channel[4]={0,0,0,0};
 volatile int input[4]={1000,1500,1500,1500}; //input variables to record the input PWM signals from receiver 
 //---------------------------
 
-
-
-long lel;
-
 void setup()
 {
  // Serial.begin(250000);

@@ -1,15 +1,27 @@
 
+/*
+ * recent changes - 
+ * 1.gyro scale changed from 250deg/s to 500 deg/s 
+ * 2.limiter function added to limit the pwm output between 1100 and 2000 us
+ * 3.on the fly PD tuning added (needs 5th channel from receiver to be connected to pin 12 on the arduino 
+ * 4.max value of pitch and roll input increased to about 40 degrees(if you have pitch/roll input pwm ranging from 1000-2000us)
+ * 5.max value of yaw input increased from 50deg/s to 500 deg/s
+ * 6.IMAX changed from 1000 to 100 and Ki changed from 0.025 to 0.25
+ */
+
 #include "I2Cdev.h"
 #include "MPU6050.h"
 #include "Wire.h"
 
-#define Kp 4
-#define Kd 0.7
-#define Ki 0.025  //premultiply the time with Ki 
-#define IMAX 1000  //this is not in degrees, this is degrees*400 
+#define BaseKp 4
+#define BaseKd 0.7
+float Kp,Kd,tune; // tune requires channel 5 to be used for scaling PD up and down
+#define Ki 0.25  //premultiply the time with Ki 
+#define IMAX 100  //this is not in degrees, this is degrees*400 
 #define YawKp 10   //Kp for yaw rate 
 #define minValue 1100  //min throttle value, this is to prevent any motor from stopping mid air.
-#define YAW_MAX 150   //max value of yaw input 
+#define maxValue 2000 //max pwm for any motor 
+#define YAW_MAX 300   //max value of yaw input 
 
 
 unsigned long FL,FR,BL,BR; //(Front left, front right, back left, back right motor)
@@ -38,9 +50,9 @@ bool connection;
 
 
 //------variables for interrupt-------
-volatile unsigned long timer[5];   
-volatile byte last_channel[4]={0,0,0,0};
-volatile int input[4]={1000,1500,1500,1500}; //input variables to record the input PWM signals from receiver 
+volatile unsigned long timer[6];   
+volatile byte last_channel[5]={0,0,0,0,0};
+volatile int input[5]={1000,1500,1500,1500,1000}; //input variables to record the input PWM signals from receiver 
 //---------------------------
 
 void setup()
@@ -52,6 +64,7 @@ void setup()
   PCMSK0 |= (1 << PCINT1); //9
   PCMSK0 |= (1 << PCINT2); //10
   PCMSK0 |= (1 << PCINT3); //11
+  PCMSK0 |= (1 << PCINT4); //12 for tuning PD 
 
   //===========attaching motors=====================
   DDRD |= PULL_HIGH;//set pins 3,4,5,6 as output, PULL_HIGH here is only used to let the arduino know which pins i will manipulate directly later 
@@ -69,13 +82,13 @@ void setup()
     accelgyro.initialize();  //do the whole initial setup thingy using this function.
     accelgyro.testConnection() ? connection=1 : connection=0 ; 
     // offsets
-    //1304||-82||-168||41||15850||-373
-    offsetA[0]= 1304;        //these offsets were calculated beforehand
-    offsetA[1]= -168; 
-    offsetA[2]= 15850;
-    offsetG[0]=(-82);
-    offsetG[1]= 41;
-    offsetG[2]=(-373);
+    //756 10 15508 4 12 -128
+    offsetA[0]= 756;        //these offsets were calculated beforehand
+    offsetA[1]= 10; 
+    offsetA[2]= 15508;
+    offsetG[0]= 4 ;
+    offsetG[1]= 12 ;
+    offsetG[2]=(-128);
     
     for(j=0;j<2000;j++)   //taking 2000 samples for finding initial orientation,takes about 0.8 seconds  
     {
@@ -178,6 +191,19 @@ inline void motorWrite() //has a maximum error of 3.5 us(time taken by micros() 
    }
 }
 
+inline int limiter(int input)
+{
+  if(input>maxValue)
+  {
+    return maxValue;
+  }
+  if(input<minValue)
+  {
+    return minValue;
+  }
+  return input;
+}
+
 inline void correction()
 {
    if(throttle>1800)
@@ -186,13 +212,12 @@ inline void correction()
    }
    if(throttle>minValue)   //if throttle is above minimum value 
    {
-     ((throttle+p+r+y) <= minValue)? FL=minValue+esc_timer: FL=(throttle+p+r+y)+esc_timer;// adding esc_timer to FL  
-                                                                                          //saves us time in the if()
-     ((throttle+p-r-y) <= minValue)? FR=minValue+esc_timer: FR=(throttle+p-r-y)+esc_timer;//conditions in the motorWrite()
-                                                                                          //function,making it more precise 
-     ((throttle-p+r-y) <= minValue)? BL=minValue+esc_timer: BL=(throttle-p+r-y)+esc_timer;//and consuming less time as 
-                                                                                           //addition takes~4-5us
-     ((throttle-p-r+y) <= minValue)? BR=minValue+esc_timer: BR=(throttle-p-r+y)+esc_timer;
+     FL = limiter(throttle+p+r+y) + esc_timer;// adding esc_timer to FL  
+     FR = limiter(throttle+p-r-y) + esc_timer;//saves us time in the if()
+     BL = limiter(throttle-p+r-y) + esc_timer;//conditions in the motorWrite()
+     BR = limiter(throttle-p-r+y) + esc_timer; //function,making it more precise 
+                                               //and consuming less time as 
+                                               //addition takes~4-5us
    }
    else
    {
@@ -223,11 +248,11 @@ void loop()
  {
    callimu();   //takes 670us,this function calculates orientation (pitch and roll) 
   
-   if(yawsetp<(-30)&&throttle<minValue)   //arming sequence
+   if(yawsetp<(-150)&&throttle<minValue)   //arming sequence
    {
       arm=1;
    }
-   else if(yawsetp>30&&throttle<minValue)  //disarming sequence 
+   else if(yawsetp>150&&throttle<minValue)  //disarming sequence 
    {
       arm=0;
    }
@@ -246,6 +271,9 @@ void loop()
       }
    }  
    //PID (funny how colleges spend 1 month trying to explain something that can be written in a single line of code) 
+   Kp = BaseKp*(1+tune);
+   Kd = BaseKd*(1+tune);
+   
    r = Kp*(rollsetp-T[1]) - Kd*G[1] + Ki*sigma[1];   //reducing time be not creating a function at all for these tiny tasks
    
    p = Kp*(pitchsetp-T[0]) - Kd*G[0] + Ki*sigma[0];
@@ -266,9 +294,10 @@ void loop()
    {
       //transferring inputs from volatile to non-volatile variables 
       throttle =input[1];
-      yawsetp  =(1500-deadBand(input[3]))*0.1;   //this is yaw rate(deg/sec)
-      pitchsetp =(1500-deadBand(input[2]))*0.05;   //roll, pitch setp in degrees
-      rollsetp=(deadBand(input[0])-1500)*0.05;   
+      yawsetp  =(1500-deadBand(input[3]))*0.5;   //this is yaw rate(deg/sec)
+      pitchsetp =(1500-deadBand(input[2]))*0.08;   //roll, pitch setp in degrees
+      rollsetp=(deadBand(input[0])-1500)*0.08;   
+      tune = float(input[4]-1000)*0.001;
       
       servoWrite=0;     //making servo write false 
       failsafe=millis(); //giving time-stamp to the failsafe variable. failsafe is updated everytime a signal from the receiver is received.  
@@ -347,5 +376,16 @@ ISR(PCINT0_vect)
     
     servoWrite=true;  //servo write becomes true when the last signal comes in
   }
-}
 
+  if(last_channel[4]==0&& PINB & B00010000) //makes sure that the first pin was initially low and is now high
+  {                                         //PINB & B00000001 is equivalent to digitalRead but faster
+    last_channel[4]=1;
+    timer[5]=timer[0];          
+  }
+  else if(last_channel[4]==1 && !(PINB & B00010000))
+  {
+    last_channel[4]=0;
+    input[4]=timer[0]-timer[5];
+  }
+
+}

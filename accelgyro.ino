@@ -38,7 +38,7 @@ inline void callimu()
 
     G[i]=g[i];
     G[i]-=offsetG[i]; // subtracting offset
-    G[i]*=0.007633;   //mapping to degrees per second by multiplying with 1/131 
+    G[i]*=0.015258;   //mapping to degrees per second for FS_500
     G[i]=(0.7*G[i])+(0.3*lastG[i]);  //buffer filter,same as that for accel.
     lastG[i]=G[i]; 
   }   // we are at about the 480us mark as this for loop takes ~180 us to execute 

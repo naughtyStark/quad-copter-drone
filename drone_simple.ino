@@ -141,9 +141,7 @@ inline void readMPU()   //function for reading MPU values. its about 80us faster
                         //In the motorWrite function, the time stamp is taken first(which returns a 3.5 us old time) and then compared.
                         //This essentially reduces the error that can exist in the pulse's width because the order in which start time is 
                         //observed and pin is pulled high is the same as the order in which end time is observed and the pin is pulled low
-   
-
-  while(Wire.available()<14); //till all the data has been received, keep reading
+  
   //each value in the mpu is stored in a "broken" form in 2 consecutive registers.(for example, acceleration along X axis has a high byte at 0x3B and low byte at 0x3C 
   //to get the actual value, all you have to do is shift the highbyte by 8 bits and bitwise add it to the low byte and you have your original value/. 
   a[0]=Wire.read()<<8|Wire.read();  

@@ -272,7 +272,7 @@ void loop()
    Kp = BaseKp*(1+(0.1*tune));
    Kd = BaseKd*(1+tune);
    Kp_pitch = Kp*(1 + 0.000625*(pitchsetp-T[0])*(pitchsetp-T[0]));
-   Kp_roll = Kp*(1 + 0.000625*(pitchsetp-T[1])*(rollsetp-T[1]));
+   Kp_roll = Kp*(1 + 0.000625*(rollsetp-T[1])*(rollsetp-T[1]));
    
    r = Kp_roll*(rollsetp-T[1]) - Kd*G[1] + Ki*sigma[1];   //reducing time be not creating a function at all for these tiny tasks
    

@@ -134,8 +134,8 @@ inline void readMPU()   //function for reading MPU values. its about 80us faster
   Wire.endTransmission();
   Wire.requestFrom(0x68,14); //request 14 bytes from mpu
 
-   lastTime=esc_timer=micros();  //get time stamp
-   PORTD |= PULL_HIGH;  //pull the pins high 
+  esc_timer=micros();   //get time stamp
+  PORTD |= PULL_HIGH;   //pull the pins high 
                         //notice that the pins are pulled high after getting the time stamp.this is done in that order because
                         //the micros() function returns the time at which it was called and not at which it returns, so there is a 3.5us
                         //delay. hence the time that we get in the esc_timer is 3.5us old.
@@ -244,6 +244,7 @@ void loop()
  }
  else
  {
+   lastTime = micros();
    callimu();   //takes 670us,this function calculates orientation (pitch and roll) 
   
    if(yawsetp<(-150)&&throttle<minValue)   //arming sequence

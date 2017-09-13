@@ -1,12 +1,12 @@
-
 /*
  * recent changes - 
- * 1.gyro scale changed from 250deg/s to 500 deg/s 
- * 2.limiter function added to limit the pwm output between 1100 and 2000 us
- * 3.on the fly PD tuning added (needs 5th channel from receiver to be connected to pin 12 on the arduino 
- * 4.max value of pitch and roll input increased to about 40 degrees(if you have pitch/roll input pwm ranging from 1000-2000us)
- * 5.max value of yaw input increased from 50deg/s to 500 deg/s
- * 6.IMAX changed from 1000 to 100 and Ki changed from 0.025 to 0.25
+ * 1.PID changed to EID, this system exponentially increases Kp with the error. 
+ * 2.gyro scale changed from 250deg/s to 500 deg/s 
+ * 3.limiter function added to limit the pwm output between 1100 and 2000 us
+ * 4.on the fly PD tuning added (needs 5th channel from receiver to be connected to pin 12 on the arduino 
+ * 5.max value of pitch and roll input increased to about 40 degrees(if you have pitch/roll input pwm ranging from 1000-2000us)
+ * 6.max value of yaw input increased from 50deg/s to 500 deg/s
+ * 7.IMAX changed from 1000 to 100 and Ki changed from 0.025 to 0.25
  */
 
 #include "I2Cdev.h"
@@ -14,10 +14,11 @@
 #include "Wire.h"
 
 #define BaseKp 4
-#define BaseKd 0.7
+#define BaseKd 1.4
 float Kp,Kd,tune; // tune requires channel 5 to be used for scaling PD up and down
-#define Ki 0.25  //premultiply the time with Ki 
-#define IMAX 100  //this is not in degrees, this is degrees*400 
+float Kp_pitch,Kp_roll;
+#define Ki 0.01  //premultiply the time with Ki 
+#define IMAX 2000  //this is not in degrees, this is degrees*400 
 #define YawKp 10   //Kp for yaw rate 
 #define minValue 1100  //min throttle value, this is to prevent any motor from stopping mid air.
 #define maxValue 2000 //max pwm for any motor 
@@ -80,14 +81,14 @@ void setup()
     TWBR = 12; //prescaler for 400KHz i2c clock rate, you may or may not use it, it wont really make a huge difference as the cycle time is fixed anyway
     
     accelgyro.initialize();  //do the whole initial setup thingy using this function.
-    accelgyro.testConnection() ? connection=1 : connection=0 ; 
+    accelgyro.testConnection()==1 ? connection=1 : connection=0 ; 
     // offsets
-    //756 10 15508 4 12 -128
+    //756 10 15508 9 11 -121
     offsetA[0]= 756;        //these offsets were calculated beforehand
-    offsetA[1]= 10; 
+    offsetA[1]= 0; 
     offsetA[2]= 15508;
-    offsetG[0]= 4 ;
-    offsetG[1]= 12 ;
+    offsetG[0]= 40 ;
+    offsetG[1]= 13 ;
     offsetG[2]=(-128);
     
     for(j=0;j<2000;j++)   //taking 2000 samples for finding initial orientation,takes about 0.8 seconds  
@@ -141,7 +142,6 @@ inline void readMPU()   //function for reading MPU values. its about 80us faster
                         //In the motorWrite function, the time stamp is taken first(which returns a 3.5 us old time) and then compared.
                         //This essentially reduces the error that can exist in the pulse's width because the order in which start time is 
                         //observed and pin is pulled high is the same as the order in which end time is observed and the pin is pulled low
-  
   //each value in the mpu is stored in a "broken" form in 2 consecutive registers.(for example, acceleration along X axis has a high byte at 0x3B and low byte at 0x3C 
   //to get the actual value, all you have to do is shift the highbyte by 8 bits and bitwise add it to the low byte and you have your original value/. 
   a[0]=Wire.read()<<8|Wire.read();  
@@ -269,12 +269,14 @@ void loop()
       }
    }  
    //PID (funny how colleges spend 1 month trying to explain something that can be written in a single line of code) 
-   Kp = BaseKp*(1+tune);
+   Kp = BaseKp*(1+(0.1*tune));
    Kd = BaseKd*(1+tune);
+   Kp_pitch = Kp*(1 + 0.000625*(pitchsetp-T[0])*(pitchsetp-T[0]));
+   Kp_roll = Kp*(1 + 0.000625*(pitchsetp-T[1])*(rollsetp-T[1]));
    
-   r = Kp*(rollsetp-T[1]) - Kd*G[1] + Ki*sigma[1];   //reducing time be not creating a function at all for these tiny tasks
+   r = Kp_roll*(rollsetp-T[1]) - Kd*G[1] + Ki*sigma[1];   //reducing time be not creating a function at all for these tiny tasks
    
-   p = Kp*(pitchsetp-T[0]) - Kd*G[0] + Ki*sigma[0];
+   p = Kp_pitch*(pitchsetp-T[0]) - Kd*G[0] + Ki*sigma[0];
    
    y = YawKp*(yawsetp-G[2]);
    if(y>0&&y>YAW_MAX) //capping max yaw value
@@ -293,8 +295,8 @@ void loop()
       //transferring inputs from volatile to non-volatile variables 
       throttle =input[1];
       yawsetp  =(1500-deadBand(input[3]))*0.5;   //this is yaw rate(deg/sec)
-      pitchsetp =(1500-deadBand(input[2]))*0.08;   //roll, pitch setp in degrees
-      rollsetp=(deadBand(input[0])-1500)*0.08;   
+      pitchsetp =(1500-deadBand(input[2]))*0.2;   //roll, pitch setp in degrees
+      rollsetp=(deadBand(input[0])-1500)*0.2;   
       tune = float(input[4]-1000)*0.001;
       
       servoWrite=0;     //making servo write false 

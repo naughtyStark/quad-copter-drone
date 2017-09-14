@@ -256,8 +256,11 @@ void loop()
       arm=0;
    }
    //~700 us by now (max)
-   sigma[0]+= (pitchsetp-T[0]); //incrementing integral of error 
-   sigma[1]+= (rollsetp-T[1]);
+  
+   pError = pitchsetp-T[0]; //storing the error value somewhere as it will be
+   rError = rollsetp-T[1]; //used repeatedly
+   sigma[0]+= (pError); //incrementing integral of error 
+   sigma[1]+= (rError);
    for(i=0;i<2;i++)
    {
       if(sigma[i]>IMAX)
@@ -272,8 +275,7 @@ void loop()
    //PID (funny how colleges spend 1 month trying to explain something that can be written in a single line of code) 
    Kp = BaseKp*(1+(0.1*tune));
    Kd = BaseKd*(1+tune);
-   pError = pitchsetp-T[0]; //storing the error value somewhere as it will be
-   rError = rollsetp-T[1]; //used repeatedly 
+    
    Kp_pitch = Kp*(1 + 0.000625*(pError)*(pError));
    Kp_roll = Kp*(1 + 0.000625*(rError)*(rError));
    

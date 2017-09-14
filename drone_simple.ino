@@ -116,7 +116,7 @@ void setup()
 
 
 int throttle=1000; //initializing throttle with default value
-float rollsetp=0.0,yawsetp=0.0,pitchsetp=0.0; //initializing setpoints at 0
+float rollsetp=0.0,yawsetp=0.0,pitchsetp=0.0,rError,pError; //initializing setpoints at 0
 int p,r,y;    // initializing PID outputs for pitch, yaw, roll
 long lastTime;  //timing variable for failsafe 
 #define dt 0.0025  //cycle time in seconds
@@ -272,12 +272,14 @@ void loop()
    //PID (funny how colleges spend 1 month trying to explain something that can be written in a single line of code) 
    Kp = BaseKp*(1+(0.1*tune));
    Kd = BaseKd*(1+tune);
-   Kp_pitch = Kp*(1 + 0.000625*(pitchsetp-T[0])*(pitchsetp-T[0]));
-   Kp_roll = Kp*(1 + 0.000625*(rollsetp-T[1])*(rollsetp-T[1]));
+   pError = pitchsetp-T[0]; //storing the error value somewhere as it will be
+   rError = rollsetp-T[1]; //used repeatedly 
+   Kp_pitch = Kp*(1 + 0.000625*(pError)*(pError));
+   Kp_roll = Kp*(1 + 0.000625*(rError)*(rError));
    
-   r = Kp_roll*(rollsetp-T[1]) - Kd*G[1] + Ki*sigma[1];   //reducing time be not creating a function at all for these tiny tasks
+   r = Kp_roll*(rError) - Kd*G[1] + Ki*sigma[1];   //reducing time be not creating a function at all for these tiny tasks
    
-   p = Kp_pitch*(pitchsetp-T[0]) - Kd*G[0] + Ki*sigma[0];
+   p = Kp_pitch*(pError) - Kd*G[0] + Ki*sigma[0];
    
    y = YawKp*(yawsetp-G[2]);
    if(y>0&&y>YAW_MAX) //capping max yaw value

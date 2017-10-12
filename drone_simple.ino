@@ -13,7 +13,7 @@
 #include "MPU6050.h"
 #include "Wire.h"
 
-#define BaseKp 4
+#define BaseKp 3.0
 #define BaseKd 1.4
 float Kp,Kd,tune; // tune requires channel 5 to be used for scaling PD up and down
 float Kp_pitch,Kp_roll;
@@ -83,12 +83,12 @@ void setup()
     accelgyro.initialize();  //do the whole initial setup thingy using this function.
     accelgyro.testConnection()==1 ? connection=1 : connection=0 ; 
     // offsets
-    //756 10 15508 9 11 -121
-    offsetA[0]= 756;        //these offsets were calculated beforehand
+    //507 -403 15508 68 -15 -133
+    offsetA[0]= 507;        //these offsets were calculated beforehand
     offsetA[1]= 0; 
     offsetA[2]= 15508;
-    offsetG[0]= 40 ;
-    offsetG[1]= 13 ;
+    offsetG[0]= 68 ;
+    offsetG[1]= -15 ;
     offsetG[2]=(-128);
     
     for(j=0;j<2000;j++)   //taking 2000 samples for finding initial orientation,takes about 0.8 seconds  
@@ -116,7 +116,7 @@ void setup()
 
 
 int throttle=1000; //initializing throttle with default value
-float rollsetp=0.0,yawsetp=0.0,pitchsetp=0.0,rError,pError; //initializing setpoints at 0
+float rollsetp=0.0,yawsetp=0.0,pitchsetp=0.0,pError,rError; //initializing setpoints at 0
 int p,r,y;    // initializing PID outputs for pitch, yaw, roll
 long lastTime;  //timing variable for failsafe 
 #define dt 0.0025  //cycle time in seconds
@@ -133,7 +133,8 @@ inline void readMPU()   //function for reading MPU values. its about 80us faster
   Wire.write(0x3B); //start reading from high byte register for accel
   Wire.endTransmission();
   Wire.requestFrom(0x68,14); //request 14 bytes from mpu
-
+  //300us for all data to be received. 
+  //requrestFrom is a blocking function 
   esc_timer=micros();   //get time stamp
   PORTD |= PULL_HIGH;   //pull the pins high 
                         //notice that the pins are pulled high after getting the time stamp.this is done in that order because
@@ -151,7 +152,7 @@ inline void readMPU()   //function for reading MPU values. its about 80us faster
   g[0]=Wire.read()<<8|Wire.read();  
   g[1]=Wire.read()<<8|Wire.read();
   g[2]=Wire.read()<<8|Wire.read();
-}
+}// 4 + 28(0.125)=11us . in total it takes 291us. 11 us since esc_timer. 
 
 inline int deadBand(int input)//the receiever signals vary a little bit (set value +/- 8us). This function removes that jitter 
 {
@@ -216,15 +217,15 @@ inline void correction()
      BR = limiter(throttle-p-r+y) + esc_timer; //function,making it more precise 
                                                //and consuming less time as 
                                                //addition takes~4-5us
-   }
+   }//23us .
    else
    {
       FL=(1000)+esc_timer;
       FR=(1000)+esc_timer;
       BL=(1000)+esc_timer;
       BR=(1000)+esc_timer;
-   }   //~120us by now
-   
+   }//20us by now
+   //773us since esc_timer . 227us buffer.
    motorWrite();  
 } 
 
@@ -245,7 +246,7 @@ void loop()
  else
  {
    lastTime = micros();
-   callimu();   //takes 670us,this function calculates orientation (pitch and roll) 
+   callimu();   //444us since esc_timer,this function calculates orientation (pitch and roll) 
   
    if(yawsetp<(-150)&&throttle<minValue)   //arming sequence
    {
@@ -255,12 +256,14 @@ void loop()
    {
       arm=0;
    }
-   //~700 us by now (max)
-  
+   //1us ,445us since esc_timer
+   
+   //PID begins---
    pError = pitchsetp-T[0]; //storing the error value somewhere as it will be
    rError = rollsetp-T[1]; //used repeatedly
    sigma[0]+= (pError); //incrementing integral of error 
    sigma[1]+= (rError);
+   
    for(i=0;i<2;i++)
    {
       if(sigma[i]>IMAX)
@@ -275,9 +278,9 @@ void loop()
    //PID (funny how colleges spend 1 month trying to explain something that can be written in a single line of code) 
    Kp = BaseKp*(1+(0.1*tune));
    Kd = BaseKd*(1+tune);
-    
-   Kp_pitch = Kp*(1 + 0.000625*(pError)*(pError));
-   Kp_roll = Kp*(1 + 0.000625*(rError)*(rError));
+
+   Kp_pitch = Kp*(1 + 0.0003*(pError)*(pError));
+   Kp_roll = Kp*(1 + 0.0003*(rError)*(rError));
    
    r = Kp_roll*(rError) - Kd*G[1] + Ki*sigma[1];   //reducing time be not creating a function at all for these tiny tasks
    
@@ -292,8 +295,7 @@ void loop()
    {
     y= -YAW_MAX;
    }
-
-    //~765us
+   //238us ,683us since esc_timer
     
    if(servoWrite) //when new pwm signals from receiver are received (see ISR function at the bottom) 
    {
@@ -307,10 +309,11 @@ void loop()
       servoWrite=0;     //making servo write false 
       failsafe=millis(); //giving time-stamp to the failsafe variable. failsafe is updated everytime a signal from the receiver is received.  
    }
-   
+   // 65us, 748us since esc_timer
    ((millis()-failsafe<1000)&&arm)? state=1 : state=0 ; //if receiver is still connected or reconnects within a second and the drone is "armed", state = 1  
-  
-    //~850us by now
+   //5us, 753us since esc_timer
+    
+   //
    if(state)   
    {
       correction(); //call the correction function to calculate the pwms and send the pwms to the escs    

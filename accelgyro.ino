@@ -19,8 +19,13 @@
 ║█████║║███║║█║───║████║
 ╚═════╝╚═══╝╚═╝───╚════╝ 
  */
+//(writing "inline" before each function in essence suggests the compiler to just copy paste it where ever it is called 
+//in order to reduce the function overhead. This is crucial in a time constrained environment.
 
-#define my_asin(a) a*(1+(0.5*a*a))
+inline float my_asin(float a)
+{
+  return a*(1+(0.5*a*a));
+}
 
 inline void callimu()
 {

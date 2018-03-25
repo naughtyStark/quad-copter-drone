@@ -78,7 +78,7 @@ void setup()
 
   //===========ACCELGYRO SETUP BEGINS===============   
     Wire.begin();
-    TWBR = 12; //prescaler for 400KHz i2c clock rate, you may or may not use it, it wont really make a huge difference as the cycle time is fixed anyway
+    TWBR = 12; //prescaler for 400KHz i2c clock rate.
     
     accelgyro.initialize();  //do the whole initial setup thingy using this function.
     accelgyro.testConnection()==1 ? connection=1 : connection=0 ; 
@@ -282,7 +282,7 @@ void loop()
    Kp_pitch = Kp*(1 + 0.0003*(pError)*(pError));
    Kp_roll = Kp*(1 + 0.0003*(rError)*(rError));
    
-   r = Kp_roll*(rError) - Kd*G[1] + Ki*sigma[1];   //reducing time be not creating a function at all for these tiny tasks
+   r = Kp_roll*(rError) - Kd*G[1] + Ki*sigma[1];   //reducing time by not creating a function at all for these tiny tasks
    
    p = Kp_pitch*(pError) - Kd*G[0] + Ki*sigma[0];
    
